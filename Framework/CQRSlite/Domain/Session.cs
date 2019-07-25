@@ -13,7 +13,7 @@ namespace CQRSlite.Domain
     {
         private readonly IRepository _repository;
         private readonly Dictionary<Guid, AggregateDescriptor> _trackedAggregates;
-        
+
         /// <summary>
         /// Initialize Session
         /// </summary>
@@ -24,7 +24,7 @@ namespace CQRSlite.Domain
             _trackedAggregates = new Dictionary<Guid, AggregateDescriptor>();
         }
 
-        public Task Add<T>(T aggregate, CancellationToken cancellationToken = default(CancellationToken)) where T : AggregateRoot
+        public Task Add<T>(T aggregate, CancellationToken cancellationToken = default) where T : AggregateRoot
         {
             if (!IsTracked(aggregate.Id))
             {
@@ -37,7 +37,7 @@ namespace CQRSlite.Domain
             return Task.FromResult(0);
         }
 
-        public async Task<T> Get<T>(Guid id, int? expectedVersion = null, CancellationToken cancellationToken = default(CancellationToken)) where T : AggregateRoot
+        public async Task<T> Get<T>(Guid id, int? expectedVersion = null, CancellationToken cancellationToken = default) where T : AggregateRoot
         {
             if (IsTracked(id))
             {
@@ -64,17 +64,23 @@ namespace CQRSlite.Domain
             return _trackedAggregates.ContainsKey(id);
         }
 
-        public async Task Commit(CancellationToken cancellationToken = default(CancellationToken))
+        public async Task Commit(CancellationToken cancellationToken = default)
         {
-            var tasks = new Task[_trackedAggregates.Count];
-            var i = 0;
-            foreach (var descriptor in _trackedAggregates.Values)
+            try
             {
-                tasks[i] = _repository.Save(descriptor.Aggregate, descriptor.Version, cancellationToken);
-                i++;
+                var tasks = new Task[_trackedAggregates.Count];
+                var i = 0;
+                foreach (var descriptor in _trackedAggregates.Values)
+                {
+                    tasks[i] = _repository.Save(descriptor.Aggregate, descriptor.Version, cancellationToken);
+                    i++;
+                }
+                await Task.WhenAll(tasks).ConfigureAwait(false);
             }
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-            _trackedAggregates.Clear();
+            finally
+            {
+                _trackedAggregates.Clear();
+            }
         }
 
         private class AggregateDescriptor
